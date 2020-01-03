@@ -509,3 +509,9 @@ err_readonly (s)
 {
   report_error (_("%s: readonly variable"), s);
 }
+
+void
+err_badbfsubst ()
+{
+  report_error ("%s", "bad brainfuck substitution");
+}

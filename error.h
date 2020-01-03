@@ -69,5 +69,6 @@ extern char *command_errstr __P((int));
 extern void err_badarraysub __P((const char *));
 extern void err_unboundvar __P((const char *));
 extern void err_readonly __P((const char *));
+extern void err_badbfsubst __P(());
 
 #endif /* !_ERROR_H_ */

@@ -9130,6 +9130,81 @@ bad_substitution:
   return (ret);
 }
 
+static char *
+eval_brainfuck (string, len)
+    char *string;
+    int len;
+{
+  size_t cap = 8, off = 0;
+  int bfi = 0, memoff = 0, tdepth = 0;
+  char mem[2048] = {0};
+  char c;
+  char *ret = (char *) xmalloc(cap);
+
+  for (; bfi < len; ++bfi)
+    {
+      c = string[bfi];
+      switch (c)
+        {
+        case '>':
+          ++memoff;
+          if (memoff >= 2048) memoff -= 2048;
+          break;
+        case '<':
+          --memoff;
+          if (memoff < 0) memoff += 2048;
+          break;
+        case '+':
+          ++mem[memoff];
+          break;
+        case '-':
+          --mem[memoff];
+          break;
+        case '.':
+          ret[off++] = mem[memoff];
+          if (off >= cap)
+            {
+              cap <<= 1;
+              ret = (char *)xrealloc (ret, cap);
+            }
+          break;
+        case ',':
+          /* not supported; just ignore it. */
+          break;
+        case '[':
+          if (!mem[memoff])
+            {
+              tdepth = 0;
+              ++bfi;
+              for (;; ++bfi)
+                {
+                  if (string[bfi] == '[') ++tdepth;
+                  else if (!tdepth && string[bfi] == ']') break;
+                  else if (tdepth && string[bfi] == ']') ++tdepth;
+                  else if (!string[bfi] || tdepth < 0) err_badbfsubst ();
+                }
+            }
+          break;
+        case ']':
+          tdepth = 0;
+          --bfi;
+          for (;; --bfi)
+            {
+              if (string[bfi] == ']') ++tdepth;
+              else if (!tdepth && string[bfi] == '[') break;
+              else if (tdepth && string[bfi] == '[') --tdepth;
+              else if (bfi < 0 || tdepth < 0) err_badbfsubst ();
+            }
+          --bfi;
+          break;
+      }
+    }
+
+  ret[off] = '\0';
+
+  return ret;
+}
+
 /* Expand a single ${xxx} expansion.  The braces are optional.  When
    the braces are used, parameter_brace_expand() does the work,
    possibly calling param_expand recursively. */
@@ -9424,6 +9499,19 @@ param_expand (string, sindex, quoted, expanded_something,
       break;
 
     case LBRACE:
+      if (string[zindex + 1] == LBRACE) /* Expand ${{ ... }}, brainfuck substitution.  */
+        {
+          t_index = zindex += 2;
+          for (; string[zindex] && string[zindex] != '}'; ++zindex)
+             ;
+          if (string[zindex] != '}' || string[zindex + 1] != '}') err_badbfsubst ();
+
+          temp = eval_brainfuck(string + t_index, zindex - t_index);
+          ++zindex;
+
+          break;
+        }
+
       tdesc = parameter_brace_expand (string, &zindex, quoted, pflags,
 				      quoted_dollar_at_p,
 				      contains_dollar_at);
@@ -9449,7 +9537,7 @@ param_expand (string, sindex, quoted, expanded_something,
 	      free (temp);
 	      tdesc->word = temp = (char *)NULL;
 	    }
-	    
+          
 	}
 
       ret = tdesc;
